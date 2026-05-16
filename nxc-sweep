@@ -5,11 +5,12 @@ BLUE='\033[0;34m'
 YELLOW='\033[38;5;226m'
 GREEN='\033[0;32m'
 GREY='\033[38;5;244m'
+RED='\033[0;31m'
 
 
 # --- Help Menu ---
 usage() {
-    echo -e "${YELLOW}Usage: nxc-sweep <IP> -u <username> -p <password> [global flags]"
+    echo -e "${YELLOW}Usage: nxc-sweep <IP> -u <username> (-p <password> | -H <hash>) [global flags]"
     exit 1
 }
 
@@ -22,34 +23,62 @@ fi
 TARGET=$1
 shift # shifts arguments over so $2 becomes $1, etc.
 
-# parses the remaining flags (-u, -p, and anything else like --local-auth)
+# parses the remaining flags (-u, -p, -H, and anything else like --local-auth)
 GLOBAL_FLAGS=()
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         -u) USER=$2; shift 2 ;;
         -p) PASS=$2; shift 2 ;;
+        -H) HASH=$2; shift 2 ;;
         *) GLOBAL_FLAGS+=("$1"); shift 1 ;;
     esac
 done
 
 
 # validation check
-if [[ -z "$TARGET" || -z "$USER" || -z "$PASS" ]]; then
+if [[ -z "$TARGET" || -z "$USER" ]]; then
     usage
 fi
 
-echo -e "${BLUE}[*] Starting NXC sweep for $TARGET as $USER ...\n"
+# require exactly one of -p / -H
+if [[ -n "$PASS" && -n "$HASH" ]]; then
+    echo -e "${RED}[!] -p and -H are mutually exclusive. Pick one."
+    usage
+fi
+if [[ -z "$PASS" && -z "$HASH" ]]; then
+    usage
+fi
+
+# build auth flag once so each protocol call stays clean
+if [[ -n "$HASH" ]]; then
+    AUTH_FLAG="-H"
+    AUTH_VALUE="$HASH"
+    AUTH_LABEL="hash"
+else
+    AUTH_FLAG="-p"
+    AUTH_VALUE="$PASS"
+    AUTH_LABEL="password"
+fi
+
+echo -e "${BLUE}[*] Starting NXC sweep for $TARGET as $USER (${AUTH_LABEL} auth) ...\n"
 
 # --- Protocol Handler ---
 check_and_run() {
     local PORT=$1
     local PROTO=$2
-    shift 2 
+    shift 2
+
+    # FTP doesn't support pass-the-hash, so skip it cleanly when in hash mode
+    if [[ "$PROTO" == "ftp" && "$AUTH_FLAG" == "-H" ]]; then
+        echo -e "${GREY}[-] Skipping ftp (pass-the-hash not supported)"
+        echo ""
+        return
+    fi
 
     # checks if the port is open before running NXC to save time
     if nc -z -w 1 "$TARGET" "$PORT" 2>/dev/null; then
         echo -e "${GREEN}[+] Port $PORT open. Checking ${PROTO} ..."
-        
+
         local EXTRA_FLAGS=("$@")
         local SAFE_GLOBAL_FLAGS=()
 
@@ -62,7 +91,7 @@ check_and_run() {
         done
 
         # run normally for everything to preserve native NXC colors
-        nxc "$PROTO" "$TARGET" -u "$USER" -p "$PASS" "${SAFE_GLOBAL_FLAGS[@]}" "${EXTRA_FLAGS[@]}"
+        nxc "$PROTO" "$TARGET" -u "$USER" "$AUTH_FLAG" "$AUTH_VALUE" "${SAFE_GLOBAL_FLAGS[@]}" "${EXTRA_FLAGS[@]}"
 
     else
         echo -e "${GREY}[-] Port $PORT closed/filtered. Skipping ${PROTO}"
@@ -71,7 +100,7 @@ check_and_run() {
 }
 
 # --- Protocols ---
-check_and_run 445 "smb" "--shares" 
+check_and_run 445 "smb" "--shares"
 check_and_run 5985 "winrm"
 check_and_run 3389 "rdp"
 check_and_run 1433 "mssql" -q "SELECT name FROM master.sys.databases;"
