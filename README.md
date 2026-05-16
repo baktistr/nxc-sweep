@@ -12,8 +12,9 @@ It's easily customizable too, you can add LDAP, WMI, or even change up the optio
 - **Quick Port Validation:** Uses `nc` to verify port status before checking the protocol with `nxc`
 - **Protocol Suite:** Automatically sweeps **SMB**, **WinRM**, **RDP**, **MSSQL**, and **FTP**
 - **Password or Hash Auth:** Use `-p <password>` or `-H <hash>` (Pass-the-Hash) — FTP is auto-skipped in hash mode
+- **Single Host or Subnet:** Accepts a single IP or a CIDR (e.g. `10.10.10.0/24`) — subnet mode hands the range to `nxc` natively, so flags like `--continue-on-success` work as expected
 - **Versatile Targeting:** Seamless use in both **Active Directory** and standalone **Windows** environments
-- **Dynamic Flag Passing:** Pass any native, global NetExec flags (e.g., `--local-auth`) directly through the wrapper
+- **Dynamic Flag Passing:** Pass any native, global NetExec flags (e.g., `--local-auth`, `--continue-on-success`) directly through the wrapper
 - **Clean Output:** Preserves native NetExec color coding for easy readability of `(Pwn3d!)` and share permissions
 
 
@@ -26,9 +27,14 @@ curl -sSL 'https://raw.githubusercontent.com/corey-farley/nxc-sweep/main/nxc-swe
 
 ## Usage
 ```
-nxc-sweep <IP> -u <username> (-p <password> | -H <hash>) [--local-auth]
+nxc-sweep <IP|CIDR> -u <username> (-p <password> | -H <hash>) [--local-auth] [--continue-on-success]
 ```
 `-p` and `-H` are mutually exclusive — supply exactly one. The hash accepted by `-H` is the same NT hash format NetExec takes (e.g. `aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0` or just the NT portion).
+
+For a single IP, the wrapper port-checks with `nc` before invoking `nxc`. For a CIDR (e.g. `172.16.155.0/24`), the wrapper skips the port check and passes the range straight to `nxc`, which handles host iteration itself. Combine with `--continue-on-success` to validate creds across every host in the subnet:
+```
+nxc-sweep 172.16.155.0/24 -u joe -p 'Flowers1' --continue-on-success
+```
 
 ## Examples
 Example 1:
