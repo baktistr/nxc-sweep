@@ -11,6 +11,7 @@ It's easily customizable too, you can add LDAP, WMI, or even change up the optio
 ## Features
 - **Quick Port Validation:** Uses `nc` to verify port status before checking the protocol with `nxc`
 - **Protocol Suite:** Automatically sweeps **SMB**, **WinRM**, **RDP**, **MSSQL**, and **FTP**
+- **Password or Hash Auth:** Use `-p <password>` or `-H <hash>` (Pass-the-Hash) — FTP is auto-skipped in hash mode
 - **Versatile Targeting:** Seamless use in both **Active Directory** and standalone **Windows** environments
 - **Dynamic Flag Passing:** Pass any native, global NetExec flags (e.g., `--local-auth`) directly through the wrapper
 - **Clean Output:** Preserves native NetExec color coding for easy readability of `(Pwn3d!)` and share permissions
@@ -23,10 +24,11 @@ curl -sSL 'https://raw.githubusercontent.com/corey-farley/nxc-sweep/main/nxc-swe
 ```
 
 
-## Usage 
+## Usage
 ```
-nxc-sweep <IP> -u <username> -p <password> [--local-auth]
+nxc-sweep <IP> -u <username> (-p <password> | -H <hash>) [--local-auth]
 ```
+`-p` and `-H` are mutually exclusive — supply exactly one. The hash accepted by `-H` is the same NT hash format NetExec takes (e.g. `aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0` or just the NT portion).
 
 ## Examples
 Example 1:
@@ -95,4 +97,31 @@ FTP         10.129.34.51    21     10.129.34.51     [*] Directory Listing
 FTP         10.129.34.51    21     10.129.34.51     10-05-24  09:13AM                  952 Backup.psafe3                                                                                                                       
                                                                                                                                                                    
 [*] All active services checked.                                                                                                                                                                    
+```
+Example 3 (Pass-the-Hash):
+```
+└─$ nxc-sweep 10.129.34.53 -u 'administrator' -H 'aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0' --local-auth
+[*] Starting NXC sweep for 10.129.34.53 as administrator (hash auth) ...
+
+[+] Port 445 open. Checking smb ...
+SMB         10.129.34.53    445    DC01             [*] Windows 10 / Server 2019 Build 17763 x64 (name:DC01) (domain:DC01) (signing:True) (SMBv1:None)
+SMB         10.129.34.53    445    DC01             [+] DC01\administrator:31d6cfe0d16ae931b73c59d7e0c089c0 (Pwn3d!)
+SMB         10.129.34.53    445    DC01             [*] Enumerated shares
+SMB         10.129.34.53    445    DC01             Share           Permissions     Remark
+SMB         10.129.34.53    445    DC01             -----           -----------     ------
+SMB         10.129.34.53    445    DC01             ADMIN$          READ,WRITE      Remote Admin
+SMB         10.129.34.53    445    DC01             C$              READ,WRITE      Default share
+SMB         10.129.34.53    445    DC01             IPC$            READ            Remote IPC
+
+[+] Port 5985 open. Checking winrm ...
+WINRM       10.129.34.53    5985   DC01             [*] Windows 10 / Server 2019 Build 17763 (name:DC01) (domain:DC01)
+WINRM       10.129.34.53    5985   DC01             [+] DC01\administrator (Pwn3d!)
+
+[-] Port 3389 closed/filtered. Skipping rdp
+
+[-] Port 1433 closed/filtered. Skipping mssql
+
+[-] Skipping ftp (pass-the-hash not supported)
+
+[*] All active services checked.
 ```
