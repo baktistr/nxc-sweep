@@ -9,7 +9,7 @@ GREY='\033[38;5;244m'
 
 # --- Help Menu ---
 usage() {
-    echo -e "${YELLOW}Usage: nxc-sweep <IP> -u <username> -p <password> [global flags]"
+    echo -e "${YELLOW}Usage: nxc-sweep <IP|CIDR> -u <username> -p <password> [global flags]"
     exit 1
 }
 
@@ -38,32 +38,46 @@ if [[ -z "$TARGET" || -z "$USER" || -z "$PASS" ]]; then
     usage
 fi
 
-echo -e "${BLUE}[*] Starting NXC sweep for $TARGET as $USER ...\n"
+# subnet mode: when TARGET is a CIDR, skip the per-host nc preflight and
+# let nxc iterate the range natively (matches `nxc smb 10.0.0.0/24 ...` behavior)
+IS_SUBNET=0
+if [[ "$TARGET" == */* ]]; then
+    IS_SUBNET=1
+    echo -e "${BLUE}[*] Starting NXC subnet sweep for $TARGET as $USER ...\n"
+else
+    echo -e "${BLUE}[*] Starting NXC sweep for $TARGET as $USER ...\n"
+fi
 
 # --- Protocol Handler ---
 check_and_run() {
     local PORT=$1
     local PROTO=$2
-    shift 2 
+    shift 2
 
-    # checks if the port is open before running NXC to save time
+    local EXTRA_FLAGS=("$@")
+    local SAFE_GLOBAL_FLAGS=()
+
+    # filters out --local-auth for FTP to prevent crashes
+    for flag in "${GLOBAL_FLAGS[@]}"; do
+        if [[ "$PROTO" == "ftp" && "$flag" == "--local-auth" ]]; then
+            continue # Skip this specific flag
+        fi
+        SAFE_GLOBAL_FLAGS+=("$flag")
+    done
+
+    # subnet mode: skip nc check, hand the CIDR straight to nxc
+    if [[ "$IS_SUBNET" == "1" ]]; then
+        echo -e "${GREEN}[+] Sweeping ${PROTO} across ${TARGET} ..."
+        nxc "$PROTO" "$TARGET" -u "$USER" -p "$PASS" "${SAFE_GLOBAL_FLAGS[@]}" "${EXTRA_FLAGS[@]}"
+        echo ""
+        return
+    fi
+
+    # single-host mode: checks if the port is open before running NXC to save time
     if nc -z -w 1 "$TARGET" "$PORT" 2>/dev/null; then
         echo -e "${GREEN}[+] Port $PORT open. Checking ${PROTO} ..."
-        
-        local EXTRA_FLAGS=("$@")
-        local SAFE_GLOBAL_FLAGS=()
-
-        # filters out --local-auth for FTP to prevent crashes
-        for flag in "${GLOBAL_FLAGS[@]}"; do
-            if [[ "$PROTO" == "ftp" && "$flag" == "--local-auth" ]]; then
-                continue # Skip this specific flag
-            fi
-            SAFE_GLOBAL_FLAGS+=("$flag")
-        done
-
         # run normally for everything to preserve native NXC colors
         nxc "$PROTO" "$TARGET" -u "$USER" -p "$PASS" "${SAFE_GLOBAL_FLAGS[@]}" "${EXTRA_FLAGS[@]}"
-
     else
         echo -e "${GREY}[-] Port $PORT closed/filtered. Skipping ${PROTO}"
     fi

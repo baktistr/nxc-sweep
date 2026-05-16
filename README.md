@@ -11,8 +11,9 @@ It's easily customizable too, you can add LDAP, WMI, or even change up the optio
 ## Features
 - **Quick Port Validation:** Uses `nc` to verify port status before checking the protocol with `nxc`
 - **Protocol Suite:** Automatically sweeps **SMB**, **WinRM**, **RDP**, **MSSQL**, and **FTP**
+- **Single Host or Subnet:** Accepts a single IP or a CIDR (e.g. `10.10.10.0/24`) — subnet mode hands the range to `nxc` natively, so flags like `--continue-on-success` work as expected
 - **Versatile Targeting:** Seamless use in both **Active Directory** and standalone **Windows** environments
-- **Dynamic Flag Passing:** Pass any native, global NetExec flags (e.g., `--local-auth`) directly through the wrapper
+- **Dynamic Flag Passing:** Pass any native, global NetExec flags (e.g., `--local-auth`, `--continue-on-success`) directly through the wrapper
 - **Clean Output:** Preserves native NetExec color coding for easy readability of `(Pwn3d!)` and share permissions
 
 
@@ -23,9 +24,13 @@ curl -sSL 'https://raw.githubusercontent.com/corey-farley/nxc-sweep/main/nxc-swe
 ```
 
 
-## Usage 
+## Usage
 ```
-nxc-sweep <IP> -u <username> -p <password> [--local-auth]
+nxc-sweep <IP|CIDR> -u <username> -p <password> [--local-auth] [--continue-on-success]
+```
+For a single IP, the wrapper port-checks with `nc` before invoking `nxc`. For a CIDR (e.g. `172.16.155.0/24`), the wrapper skips the port check and passes the range straight to `nxc`, which handles host iteration itself. Combine with `--continue-on-success` to validate creds across every host in the subnet:
+```
+nxc-sweep 172.16.155.0/24 -u joe -p 'Flowers1' --continue-on-success
 ```
 
 ## Examples
