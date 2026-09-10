@@ -60,6 +60,15 @@ else
     AUTH_LABEL="password"
 fi
 
+# note whether --local-auth was passed so protocols that can't use it get skipped
+LOCAL_AUTH=0
+for flag in "${GLOBAL_FLAGS[@]}"; do
+    if [[ "$flag" == "--local-auth" ]]; then
+        LOCAL_AUTH=1
+        break
+    fi
+done
+
 # subnet mode: when TARGET is a CIDR, skip the per-host nc preflight and
 # let nxc iterate the range natively (matches `nxc smb 10.0.0.0/24 ...` behavior)
 IS_SUBNET=0
@@ -79,6 +88,13 @@ check_and_run() {
     # FTP doesn't support pass-the-hash, so skip it cleanly when in hash mode
     if [[ "$PROTO" == "ftp" && "$AUTH_FLAG" == "-H" ]]; then
         echo -e "${GREY}[-] Skipping ftp (pass-the-hash not supported)"
+        echo ""
+        return
+    fi
+
+    # LDAP is a domain service, so --local-auth can never authenticate against it
+    if [[ "$PROTO" == "ldap" && "$LOCAL_AUTH" == "1" ]]; then
+        echo -e "${GREY}[-] Skipping ldap (--local-auth not supported)"
         echo ""
         return
     fi
@@ -115,6 +131,7 @@ check_and_run() {
 
 # --- Protocols ---
 check_and_run 445 "smb" "--shares"
+check_and_run 389 "ldap" "--users"
 check_and_run 5985 "winrm"
 check_and_run 3389 "rdp"
 check_and_run 1433 "mssql" -q "SELECT name FROM master.sys.databases;"

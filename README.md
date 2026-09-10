@@ -5,12 +5,12 @@ Bash wrapper for NetExec to quickly validate compromised credentials across SMB,
 ## Why?
 Running nxc per-protocol manually can be tedious sometimes, especially when you're constantly pivoting from different users. This wrapper pre-validates ports with netcat to see if they're present, then sweeps all relevant services in one go. Built for HTB labs and my OSCP prep to speed up early Windows/AD credentialed enumeration.
 
-It's easily customizable too, you can add LDAP, WMI, or even change up the options to the pre-existing protcols.
+It's easily customizable too, you can add WMI, VNC, or even change up the options to the pre-existing protcols.
 
 
 ## Features
 - **Quick Port Validation:** Uses `nc` to verify port status before checking the protocol with `nxc`
-- **Protocol Suite:** Automatically sweeps **SMB**, **WinRM**, **RDP**, **MSSQL**, and **FTP**
+- **Protocol Suite:** Automatically sweeps **SMB**, **LDAP**, **WinRM**, **RDP**, **MSSQL**, and **FTP**
 - **Password or Hash Auth:** Use `-p <password>` or `-H <hash>` (Pass-the-Hash) — FTP is auto-skipped in hash mode
 - **Single Host or Subnet:** Accepts a single IP or a CIDR (e.g. `10.10.10.0/24`) — subnet mode hands the range to `nxc` natively, so flags like `--continue-on-success` work as expected
 - **Versatile Targeting:** Seamless use in both **Active Directory** and standalone **Windows** environments
@@ -35,6 +35,8 @@ For a single IP, the wrapper port-checks with `nc` before invoking `nxc`. For a 
 ```
 nxc-sweep 172.16.155.0/24 -u joe -p 'Flowers1' --continue-on-success
 ```
+
+LDAP is swept on port 389 and defaults to `--users` (domain user list with `badpwdcount` and descriptions). Swap that for whatever fits your engagement — e.g. `--asreproast`, `--kerberoasting`, or `--trusted-for-delegation` — by editing the `check_and_run 389 "ldap"` line in the script. Hash auth works with LDAP, so `-H` sweeps it normally, but LDAP is auto-skipped when `--local-auth` is passed — it's a domain service, so local auth can never succeed against it.
 
 ## Examples
 Example 1:
